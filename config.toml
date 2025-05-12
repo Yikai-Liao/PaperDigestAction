@@ -1,0 +1,60 @@
+[recommend_pipeline]
+
+[recommend_pipeline.data]
+categories = ["cs.CL", "cs.CV", "cs.AI", "cs.LG", "stat.ML", "cs.IR", "cs.CY"]
+preference_dir = "./preference"
+embed_repo_id = "lyk/ArxivEmbedding"
+content_repo_id = "lyk/PaperDigestDataBase"
+cache_dir = "./cache"
+
+background_start_year = 2024
+preference_start_year = 2023
+
+[recommend_pipeline.trainer]
+seed = 42
+bg_sample_rate = 5.0
+
+[recommend_pipeline.trainer.logci_regression]
+C = 1
+max_iter = 1000
+
+[recommend_pipeline.predict]
+last_n_days = 7
+high_threshold = 0.85
+boundary_threshold = 0.6
+sample_rate = 0.004
+
+[summary_pipeline]
+[summary_pipeline.pdf]
+output_dir = "./pdfs"
+delay = 3
+max_retry = 3
+model = "grok-3" # alias in llms
+
+[[llms]]
+alias = "grok-3"
+name = "grok-3"
+base_url = "https://api.x.ai/v1"
+api_key = "env:XAI_API_KEY"
+temperature = 0.1
+top_p = 0.8
+num_workers = 2
+
+[[llms]]
+alias = "grok-3-mini"
+name = "grok-3-mini"
+base_url = "https://api.x.ai/v1"
+api_key = "env:XAI_API_KEY"
+temperature = 0.1
+top_p = 0.8
+num_workers = 10
+reasoning_effort = 'high'
+
+[[llms]]
+alias = "gemini-2.5"
+name = "gemini-2.5-pro-preview-05-06"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+api_key = "env:GEMINI_API_KEY"
+temperature = 0.1
+top_p = 0.8
+num_workers = 2

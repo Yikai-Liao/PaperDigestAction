@@ -1,0 +1,20 @@
+[project]
+name = "paperdigestaction"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cleanlab>=2.7.1",
+    "datasets>=3.6.0",
+    "imblearn>=0.0",
+    "loguru>=0.7.3",
+    "modal-python>=0.4.2.1",
+    "polars>=1.29.0",
+    "scikit-learn>=1.6.1",
+    "modal-python>=0.4.2",
+    "pydantic>=2.11.4",
+    "toml>=0.10.2",
+    "huggingface-hub>=0.31.1",
+    "hf-xet>=1.1.0",
+]
