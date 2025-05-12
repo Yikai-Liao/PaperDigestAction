@@ -2,6 +2,7 @@
 
 [recommend_pipeline.data]
 categories = ["cs.CL", "cs.CV", "cs.AI", "cs.LG", "stat.ML", "cs.IR", "cs.CY"]
+embedding_columns = ["jasper_v1", "conan_v1"]
 preference_dir = "./preference"
 embed_repo_id = "lyk/ArxivEmbedding"
 content_repo_id = "lyk/PaperDigestDataBase"
@@ -20,6 +21,9 @@ max_iter = 1000
 
 [recommend_pipeline.predict]
 last_n_days = 7
+start_date = ""
+end_date = ""
+
 high_threshold = 0.85
 boundary_threshold = 0.6
 sample_rate = 0.004

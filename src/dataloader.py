@@ -60,6 +60,13 @@ def load_preference(config: Config) -> pl.DataFrame:
     logger.info(f"{len(preferences)} preference items loaded from {preference_dir}")
     return preferences
 
+def remove_recommended(remaining_df: pl.LazyFrame, recommended_df: pl.DataFrame):
+    # Remove recommended items from remaining_df
+    logger.info("Removing recommended items from remaining_df...")
+    recommended_ids = recommended_df.select("id").to_series()
+    remaining_df = remaining_df.filter(~pl.col("id").is_in(recommended_ids))
+    return remaining_df
+
 def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
     data_config = config.recommend_pipeline.data
     preferences = load_preference(config)
@@ -68,7 +75,7 @@ def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
     # lazy load the dataset from huggingface
     logger.info(f"Loading dataset from {parquet_paths}")
     df = pl.scan_parquet(parquet_paths, allow_missing_columns=True)
-
+    
 
     categories  = config.recommend_pipeline.data.categories
     # construct filter condition
@@ -77,7 +84,7 @@ def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
         filter_condition = filter_condition | pl.col("categories").list.contains(pl.lit(category))
     logger.debug(f"Filter condition: {filter_condition}")
 
-    # filter and collect the dataset
+    # filter the dataset
     lazy_df = df.filter(filter_condition)
     
     preference_ids = preferences.select("id").to_series()
@@ -108,7 +115,7 @@ def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
         remaining_df = remaining_df\
             .with_columns(pl.col("updated").str.slice(0, 4).cast(pl.Int32).alias("year"))\
             .filter(pl.col("year") >= background_start_year)
-
+    remaining_df = remove_recommended(remaining_df, load_recommended(config))
     return prefered_df, remaining_df
 
 def show_df_size(df: pl.DataFrame, name: str):

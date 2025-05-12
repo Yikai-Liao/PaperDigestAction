@@ -28,6 +28,7 @@ class DataConfig(BaseModel):
         ["cs.CL", "cs.CV", "cs.AI", "cs.LG", "stat.ML", "cs.IR", "cs.CY"],
         description="Paper categories"
     )
+    embedding_columns: List[str] = Field(..., description="Columns for embeddings")
     preference_dir: str = Field("./preference", description="Preference data directory")
     background_start_year: int = Field(2024, description="Start year for background data")
     preference_start_year: int = Field(2023, description="Start year for preference data")
@@ -38,6 +39,8 @@ class DataConfig(BaseModel):
 class PredictConfig(BaseModel):
     """Configuration for prediction parameters"""
     last_n_days: int = Field(7, description="Number of recent days to consider")
+    start_date: str = Field(..., description="The start date to recommend, empty to use last_n_days")
+    end_date: str = Field(..., description="End date to recommend, empty to use last_n_days")
     high_threshold: float = Field(0.85, description="High threshold")
     boundary_threshold: float = Field(0.6, description="Boundary threshold")
     sample_rate: float = Field(0.004, description="Sampling rate")
