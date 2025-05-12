@@ -241,12 +241,13 @@ def predict_and_save(model, remaining_df: pl.DataFrame, config: Config) -> pl.Da
     output_file = REPO_ROOT / config.recommend_pipeline.predict.output_path
     
     # 保存
-    results_df.write_parquet(output_file)
-    logger.info(f"预测结果已保存到: {output_file}")
+    # results_df.write_parquet(output_file)
     
     # 提取并返回推荐的论文
     recommended_results = results_df.filter(pl.col("show") == 1)
     logger.info(f"推荐{recommended_results.height}篇论文")
+    recommended_results.write_parquet(output_file)
+    logger.info(f"预测结果已保存到: {output_file}")
     show_df = recommended_results.select("id", "title", "abstract", "score")
     logger.debug(f"{show_df}")
     
