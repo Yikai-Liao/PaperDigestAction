@@ -1,0 +1,42 @@
+name: Paper Recommendation Pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install the latest version of uv
+        id: setup-uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          activate-environment: true
+          enable-cache: true
+          cache-suffix: "paper-digest-action"
+          cache-dependency-glob: "**/pyproject.toml|**/uv.lock"
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ steps.setup-uv.outputs.cache-hit }}" == 'true' ]; then
+            echo "Cache was restored, using cached dependencies"
+          else
+            echo "No cache found, installing dependencies from scratch"
+            uv sync
+          fi
+
+      - name: Run recommendation script
+        run: python script/recommend.py
+
+      - name: Upload recommendations
+        uses: actions/upload-artifact@v4
+        with:
+          name: recommendations
+          path: recommendations.parquet
+          retention-days: 60
+
+

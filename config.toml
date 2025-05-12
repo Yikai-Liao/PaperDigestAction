@@ -28,6 +28,8 @@ high_threshold = 0.85
 boundary_threshold = 0.6
 sample_rate = 0.004
 
+output_path = "./recommendations.parquet"
+
 [summary_pipeline]
 [summary_pipeline.pdf]
 output_dir = "./pdfs"

@@ -44,7 +44,7 @@ class PredictConfig(BaseModel):
     high_threshold: float = Field(0.85, description="High threshold")
     boundary_threshold: float = Field(0.6, description="Boundary threshold")
     sample_rate: float = Field(0.004, description="Sampling rate")
-
+    output_path: str = Field(..., description="Output path for predictions")
 
 class RecommendPipelineConfig(BaseModel):
     """Configuration for recommendation system"""
