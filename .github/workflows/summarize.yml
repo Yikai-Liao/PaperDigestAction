@@ -1,0 +1,66 @@
+name: Paper Summarization
+
+on:
+  workflow_dispatch:
+    inputs:
+      arxiv_ids:
+        description: 'Comma-separated list of arXiv IDs to summarize'
+        required: true
+        type: string
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install the latest version of uv
+        id: setup-uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          activate-environment: true
+          enable-cache: true
+          cache-suffix: "paper-digest-action-summarize"
+          cache-dependency-glob: "**/pyproject.toml|**/uv.lock"
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          if [ "${{ steps.setup-uv.outputs.cache-hit }}" == 'true' ]; then
+            echo "Cache was restored, using cached dependencies"
+          else
+            echo "No cache found, installing dependencies from scratch"
+          fi
+
+      - name: Cache data directory
+        id: cache-data
+        uses: actions/cache@v3
+        with:
+          path: ./cache # Assuming this is where Hugging Face datasets are cached locally by the script
+          key: paper-digest-huggingface-${{ github.run_id }} # More specific key, or could be more general if data is stable
+          restore-keys: |
+            paper-digest-huggingface-
+
+      - name: Check cache status
+        run: |
+          if [ "${{ steps.cache-data.outputs.cache-hit }}" == 'true' ]; then
+            echo "数据缓存命中，使用缓存的数据"
+          else
+            echo "未找到数据缓存，将在运行过程中创建新的缓存"
+          fi
+        
+      - name: Run summarization script
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }} # Assuming HF_TOKEN is needed for dataset download
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }} # If summarization uses XAI
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # If summarization uses Gemini
+        run: python script/summarize.py --arxiv_ids "${{ github.event.inputs.arxiv_ids }}"
+
+      - name: Upload summarized artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: summarized # Changed artifact name
+          path: summarized.parquet # Changed path to match the script output
+          retention-days: 30 # Adjust as needed
