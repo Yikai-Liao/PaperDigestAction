@@ -76,8 +76,12 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     
     Also, please provide a URL-friendly string that summarizes the title of the research (slug).
     Although I talked to you in English, but you need to make sure that your answer is in {config.summary_pipeline.pdf.language}. But always use English for the keywords slug and institution. 
-    Also, you need to know that, your structured answer will rendered in markdown, so please also use the markdown syntax, especially for latex formula using $...$ or $$...$$.
     """
+    logger.debug(f"enable-latex: {config.summary_pipeline.pdf.enable_latex}")
+    if config.summary_pipeline.pdf.enable_latex:
+        prompt += "    Also, you need to know that, your structured answer will rendered in markdown, so please also use the markdown syntax, especially for latex formula using $...$ or $$...$$.\n"
+    else:
+        prompt += "    Also, you need to know that, your answer will be rendered in a platform without support for latex equations, so please do not use any latex syntax in your answer, use more UTF-8 equivalent characters instead, like  ∫ ∑ ∏ ∈ ∉ ∪ ∩ ⊂ ⊆ ⊄ ⊈ ⊇ ⊃ ⊄ ⊈ ⊇ ⊃ ∀ ∃ ∄ ∴ ∵ ∷ ≡ ≠ ≈ ≅ ≪ ≫ ≤ ≥ < > ≤ ≥ < > ≪ ≫ ≤ ≥ < > ≪ ≫ ≤ ≥ < >\n"
 
     
     system_content = f"{prompt}\n. In the end, please carefully organized your answer into JSON format and take special care to ensure the Escape Character in JSON. When generating JSON, ensure that newlines within string values are represented using the escape character.\nHere is an example, but just for the format, you should give more detailed answer.\n{example}"

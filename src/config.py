@@ -69,6 +69,7 @@ class PdfConfig(BaseModel):
     max_retry: int = Field(3, description="Maximum retry attempts")
     model: str = Field("grok-3", description="Language model alias to use")
     language: str = Field("en", description="Language for processing")
+    enable_latex: bool = Field(False, description="Enable LaTeX in AI summary")
 
 
 class SummaryPipelineConfig(BaseModel):

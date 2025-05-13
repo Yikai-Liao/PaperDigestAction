@@ -36,6 +36,7 @@ delay = 3
 max_retry = 3
 model = "grok-3-mini" # alias in llms
 language = "zh"
+enable_latex = false
 
 [[llms]]
 alias = "grok-3"
