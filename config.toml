@@ -23,7 +23,6 @@ max_iter = 1000
 last_n_days = 7
 start_date = ""
 end_date = ""
-
 high_threshold = 0.85
 boundary_threshold = 0.6
 sample_rate = 0.004
@@ -36,6 +35,7 @@ output_dir = "./pdfs"
 delay = 3
 max_retry = 3
 model = "grok-3" # alias in llms
+language = "zh"
 
 [[llms]]
 alias = "grok-3"
@@ -58,7 +58,7 @@ reasoning_effort = 'high'
 
 [[llms]]
 alias = "gemini-2.5"
-name = "gemini-2.5-pro-preview-05-06"
+name = "gemini-2.5-pro-exp-03-25"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
 api_key = "env:GEMINI_API_KEY"
 temperature = 0.1

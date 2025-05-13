@@ -5,7 +5,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
 
 from src.config import Config
-from src.augment import sample_pesudo_negtive
 from src.dataloader import load_dataset
 from loguru import logger
 import polars as pl
@@ -213,7 +212,7 @@ def adaptive_sample(scores, target_sample_rate=0.15, high_threshold=0.95, bounda
     return show_flags
 
 
-def predict_and_save(model, remaining_df: pl.DataFrame, config: Config) -> pl.DataFrame:
+def predict(model, remaining_df: pl.DataFrame, config: Config) -> pl.DataFrame:
     """预测、推荐并保存结果。
     
     Args:
@@ -246,8 +245,6 @@ def predict_and_save(model, remaining_df: pl.DataFrame, config: Config) -> pl.Da
     # 提取并返回推荐的论文
     recommended_results = results_df.filter(pl.col("show") == 1)
     logger.info(f"推荐{recommended_results.height}篇论文")
-    recommended_results.write_parquet(output_file)
-    logger.info(f"预测结果已保存到: {output_file}")
     show_df = recommended_results.select("id", "title", "abstract", "score")
     logger.debug(f"{show_df}")
     
@@ -261,5 +258,5 @@ if __name__ == "__main__":
     prefered_df = prefered_df.collect()
     remaining_df = remaining_df.collect()
     final_model = train_model(prefered_df, remaining_df, config)
-    predict_and_save(final_model, remaining_df, config)
+    predict(final_model, remaining_df, config)
     logger.info("Final model training successfully completed")
