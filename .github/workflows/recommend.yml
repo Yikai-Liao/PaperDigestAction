@@ -29,20 +29,20 @@ jobs:
             echo "No cache found, installing dependencies from scratch"
           fi
 
-      - name: Cache data directory
-        id: cache-data
-        uses: actions/cache@v3
-        with:
-          path: ./cache
-          key: paper-digest-huggingface
+      # - name: Cache data directory
+      #   id: cache-data
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: ./cache
+      #     key: paper-digest-huggingface
 
-      - name: Check cache status
-        run: |
-          if [ "${{ steps.cache-data.outputs.cache-hit }}" == 'true' ]; then
-            echo "数据缓存命中，使用缓存的数据"
-          else
-            echo "未找到数据缓存，将在运行过程中创建新的缓存"
-          fi
+      # - name: Check cache status
+      #   run: |
+      #     if [ "${{ steps.cache-data.outputs.cache-hit }}" == 'true' ]; then
+      #       echo "数据缓存命中，使用缓存的数据"
+      #     else
+      #       echo "未找到数据缓存，将在运行过程中创建新的缓存"
+      #     fi
         
       - name: Run recommendation script
         env:

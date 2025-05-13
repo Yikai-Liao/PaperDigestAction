@@ -152,7 +152,6 @@ def load_dataset(config: Config, manual_start_year: Optional[int] = None, arxiv_
     # The script/summarize.py will need to handle this: load full for training, then filter for prediction.
     # So, load_dataset should return the full remaining_df. The filtering for specific IDs will happen in script/summarize.py.
 
-    logger.info(f"Dataset loaded. Preferred: {prefered_df.estimated_size()}, Remaining: {remaining_df.estimated_size()}")
     return prefered_df, remaining_df
 
 def show_df_size(df: pl.DataFrame, name: str):
