@@ -10,11 +10,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set all secrets as environment variables
-        run: |
-          echo "${{ toJson(secrets) }}" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
-        shell: bash
-
       - name: Install the latest version of uv
         id: setup-uv
         uses: astral-sh/setup-uv@v6
@@ -50,6 +45,10 @@ jobs:
           fi
         
       - name: Run recommendation script
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python script/recommend.py
 
       - name: Upload recommendations
