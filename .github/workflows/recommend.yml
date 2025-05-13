@@ -10,6 +10,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set all secrets as environment variables
+        run: |
+          echo "${{ toJson(secrets) }}" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
+        shell: bash
+
       - name: Install the latest version of uv
         id: setup-uv
         uses: astral-sh/setup-uv@v6
@@ -43,12 +48,6 @@ jobs:
           else
             echo "未找到数据缓存，将在运行过程中创建新的缓存"
           fi
-
-      - name: 将所有 secrets 设置为环境变量
-        run: |
-          # 将 secrets 导出为环境变量
-          echo "${{ toJson(secrets) }}" | jq -r 'to_entries[] | "\(.key)=\(.value)"' >> $GITHUB_ENV
-        shell: bash
         
       - name: Run recommendation script
         run: python script/recommend.py
