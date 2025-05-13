@@ -126,6 +126,7 @@ def show_df_size(df: pl.DataFrame, name: str):
 
 def remove_recommended(remaining_df: pl.LazyFrame, recommended_df: pl.DataFrame):
     # Remove recommended items from remaining_df
+    logger.info("Removing recommended items from remaining_df...")
     recommended_ids = recommended_df.select("id").to_series()
     # 使用implode()修复is_in弃用警告
     remaining_df = remaining_df.filter(~pl.col("id").is_in(recommended_ids.implode()))

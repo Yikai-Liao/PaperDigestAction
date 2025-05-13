@@ -15,8 +15,11 @@ from loguru import logger
 if __name__ == "__main__":
     config = Config.default()
     prefered_df, remaining_df = load_dataset(config)
+    logger.info("Started to collect the dataset")
     prefered_df = prefered_df.collect()
     remaining_df = remaining_df.collect()
+    logger.info("Dataset collection completed")
+    
     final_model = train_model(prefered_df, remaining_df, config)
     recommended_df = predict(final_model, remaining_df, config)
     summarized_df = summarize(recommended_df, config)

@@ -282,7 +282,7 @@ def extract_and_convert_papers(recommended_df: pl.DataFrame) -> dict[str, str]:
                 # or it can handle the .tar.gz directly. The prompt implies it handles .tar.gz
                 structured_data_obj = tex_reader.process(str(latex_tar_gz_file))
                 json_output_str = tex_reader.to_json(structured_data_obj)
-
+                structured_data_obj = json.loads(json_output_str) # Convert to Python object
                 with open(json_file, 'w', encoding='utf-8') as f:
                     f.write(json_output_str)
                 logger.info(f"已保存 JSON 文件: {json_file}")
@@ -330,45 +330,45 @@ if __name__ == "__main__":
 
     config = Config.default()
     # # Ensure data loading happens correctly
-    # try:
-    #     prefered_df_lazy, remaining_df_lazy = load_dataset(config)
-    #     prefered_df = prefered_df_lazy.collect()
-    #     remaining_df = remaining_df_lazy.collect()
-    # except Exception as e:
-    #     logger.error(f"加载数据集失败: {e}")
-    #     sys.exit(1)
+    try:
+        prefered_df_lazy, remaining_df_lazy = load_dataset(config)
+        prefered_df = prefered_df_lazy.collect()
+        remaining_df = remaining_df_lazy.collect()
+    except Exception as e:
+        logger.error(f"加载数据集失败: {e}")
+        sys.exit(1)
 
-    # if prefered_df.is_empty() or remaining_df.is_empty():
-    #     logger.error("偏好数据集或剩余数据为空，无法继续模型训练。请检查数据源和配置。")
-    #     sys.exit(1)
+    if prefered_df.is_empty() or remaining_df.is_empty():
+        logger.error("偏好数据集或剩余数据为空，无法继续模型训练。请检查数据源和配置。")
+        sys.exit(1)
         
-    # final_model = train_model(prefered_df, remaining_df, config)
+    final_model = train_model(prefered_df, remaining_df, config)
     
-    # # Ensure predict_and_save returns a DataFrame
-    # recommended_df_output = predict(final_model, remaining_df, config)
+    # Ensure predict_and_save returns a DataFrame
+    recommended_df_output = predict(final_model, remaining_df, config)
     
-    # if recommended_df_output is None:
-    #     logger.error("模型预测未返回推荐数据框 (recommended_df is None)。")
-    #     # Create an empty DataFrame with an 'id' column if you want to test extract_and_convert_papers
-    #     # For example: recommended_df = pl.DataFrame({'id': []}) 
-    #     # Or exit if this is critical
-    #     logger.info("将使用空的 recommended_df 进行论文提取和转换（如果没有推荐）。")
-    #     recommended_df = pl.DataFrame({'id': []}) # Ensure it's a DataFrame
-    # elif isinstance(recommended_df_output, pl.DataFrame):
-    #     recommended_df = recommended_df_output
-    # else:
-    #     logger.error(f"predict_and_save 返回了意外的类型: {type(recommended_df_output)}。期望 polars.DataFrame。")
-    #     exit(1)
+    if recommended_df_output is None:
+        logger.error("模型预测未返回推荐数据框 (recommended_df is None)。")
+        # Create an empty DataFrame with an 'id' column if you want to test extract_and_convert_papers
+        # For example: recommended_df = pl.DataFrame({'id': []}) 
+        # Or exit if this is critical
+        logger.info("将使用空的 recommended_df 进行论文提取和转换（如果没有推荐）。")
+        recommended_df = pl.DataFrame({'id': []}) # Ensure it's a DataFrame
+    elif isinstance(recommended_df_output, pl.DataFrame):
+        recommended_df = recommended_df_output
+    else:
+        logger.error(f"predict_and_save 返回了意外的类型: {type(recommended_df_output)}。期望 polars.DataFrame。")
+        exit(1)
 
 
-    # logger.info("模型训练和预测成功完成。")
+    logger.info("模型训练和预测成功完成。")
     
-    # # 调用函数来提取和转换论文
-    # if recommended_df.is_empty():
-    #     logger.info("没有推荐的论文可供提取和转换。")
-    # else:
-    #     results = summarize(recommended_df, config)
-    #     results.write_parquet(REPO_ROOT / "summarized.parquet")
+    # 调用函数来提取和转换论文
+    if recommended_df.is_empty():
+        logger.info("没有推荐的论文可供提取和转换。")
+    else:
+        results = summarize(recommended_df, config)
+        results.write_parquet(REPO_ROOT / "summarized.parquet")
     
     results = pl.read_parquet(REPO_ROOT / "summarized.parquet")
     merged = merge_keywords(results, config)

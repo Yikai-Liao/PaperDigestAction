@@ -34,7 +34,7 @@ output_path = "./recommendations.parquet"
 output_dir = "./pdfs"
 delay = 3
 max_retry = 3
-model = "grok-3" # alias in llms
+model = "grok-3-mini" # alias in llms
 language = "zh"
 
 [[llms]]
