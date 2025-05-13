@@ -36,7 +36,7 @@ class PaperSummary(BaseModel):
 
 class KeywordMerge(BaseModel):
     draft: str = Field(description="Please reasoning step by step here to get a more accurate and explainable merged_keywords.")
-    merged_keywords: dict[str, list[str]] = Field(description="A dictionary mapping canonical keywords to lists of similar keywords that have been merged to eliminate duplicates.")
+    merged_keywords: dict[str, list[str]] = Field(description="A dictionary mapping redundant or incorrect keywords to their corresponding standard keyword lists. The keys are the redundant/incorrect keywords, and the values are lists of standard keywords. For example: {'LLM': ['LLMs'], 'Large Language Model': ['LLMs'], 'Efficient LLM': ['Efficient', 'LLMs']}. If a keyword doesn't need to be changed, it should not be included in this dictionary.")
 
 def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     """
