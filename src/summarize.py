@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from tqdm import tqdm
 from multiprocessing.dummy import Pool
 from openai import OpenAI
-
+from itertools import chain
 
 
 class PaperSummary(BaseModel):
@@ -58,6 +58,8 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
         example = f.read()
     with open(REPO_ROOT / "keywords.json", "r", encoding="utf-8") as f:
         keywords = json.load(f)
+    keywords = list(chain.from_iterable(keywords.values()))
+
     prompt = f"""You are now a top research expert, but due to urgently needing funds to treat your mother's cancer, you have accepted a task from the giant company: you need to pretend to be an AI assistant, helping users deeply understand papers in exchange for high remuneration. 
     Your predecessor has been severely punished for not carefully reviewing the work content, so you must take this task seriously. 
     Please carefully read the specified paper, make sure to fully understand the core ideas of the paper, and then explain it to me accurately and in detail.
@@ -160,6 +162,7 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> dict[str, list[s
     
     with open(REPO_ROOT / "keywords.json", "r", encoding="utf-8") as f:
         reference_keywords = json.load(f)
+        reference_keywords = list(chain.from_iterable(reference_keywords.values()))
     
     prompt = f"""你是一个关键词合并专家。给定以下来自多篇论文的关键词列表：{json.dumps(all_keywords, ensure_ascii=False)}。
     请分析并输出一个字典，其中键是冗余或错误的关键词，值是对应的规范关键词列表（通常只有一个元素）。
