@@ -86,6 +86,12 @@ def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
 
     # filter the dataset
     lazy_df = df.filter(filter_condition)
+
+    embedding_columns = data_config.embedding_columns
+    lazy_df = lazy_df.filter(
+        pl.all_horizontal([pl.col(col).is_not_null() for col in embedding_columns])
+    )
+    logger.info(f"Removing rows with null values in columns: {embedding_columns}")
     
     preference_ids = preferences.select("id").to_series()
     indicator_col_name = "__is_preferred__" # Using a distinct name
