@@ -44,6 +44,14 @@ jobs:
             echo "未找到数据缓存，将在运行过程中创建新的缓存"
           fi
 
+      - name: Set all secrets as environment variables
+        run: |
+          # Export all secrets to environment variables
+          for secret in $(echo "${{ toJson(secrets) }}" | jq -r 'keys[]'); do
+            echo "$secret=${{ secrets[secret] }}" >> $GITHUB_ENV
+          done
+        shell: bash
+        
       - name: Run recommendation script
         run: python script/recommend.py
 
