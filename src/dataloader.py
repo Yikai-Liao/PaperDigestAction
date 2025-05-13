@@ -132,26 +132,36 @@ def load_dataset(config: Config, manual_start_year: Optional[int] = None, arxiv_
     )
     
     preference_ids = preferences.select("id").to_series()
-    indicator_col_name = "__is_preferred__"
-    
+    indicator_col_name = "__is_preferred__" # Using a distinct name
+    # 使用implode()修复is_in弃用警告
     database = lazy_df.with_columns(
         pl.col("id").is_in(preference_ids.implode()).alias(indicator_col_name)
     )
 
-    prefered_df = database.filter(pl.col(indicator_col_name)).drop(indicator_col_name)
-    remaining_df = database.filter(pl.col(indicator_col_name).not_()).drop(indicator_col_name)
+    logger.info(f"Splitting collected data based on '{indicator_col_name}' column...")
 
-    # If arxiv_ids_list is provided (for manual summarize), filter remaining_df to only these IDs.
-    # The 'prefered_df' should remain as is for model training.
-    # The 'remaining_df' for manual summarization context should be *only* the target IDs.
-    # However, for training the model, 'remaining_df' should be the broader background set.
-    # So, the function should return:
-    # 1. prefered_df (for training)
-    # 2. EITHER the full remaining_df (for recommend.py or for training background in summarize.py)
-    #    OR a filtered remaining_df (if arxiv_ids_list is given, this becomes the target for summarization *after* training)
-    # The script/summarize.py will need to handle this: load full for training, then filter for prediction.
+    prefered_df = database.filter(pl.col(indicator_col_name))
+    remaining_df = database.filter(~pl.col(indicator_col_name))
+
+    preferences = preferences.lazy()
+
+    prefered_df = prefered_df.join(
+        preferences, on="id", how="inner"
+    ).drop(indicator_col_name)
+        
+    remaining_df = remaining_df.drop(indicator_col_name)
+
     # So, load_dataset should return the full remaining_df. The filtering for specific IDs will happen in script/summarize.py.
 
+    start_year = max(2017, min(data_config.background_start_year, data_config.preference_start_year))
+    background_start_year = data_config.background_start_year
+    if start_year < background_start_year:
+        # year is stored in updated column, like 2023-10-01 in string format
+        logger.info(f"Filtering out rows in remaining_df whose year is less than {background_start_year}...")
+        remaining_df = remaining_df\
+            .with_columns(pl.col("updated").str.slice(0, 4).cast(pl.Int32).alias("year"))\
+            .filter(pl.col("year") >= background_start_year)
+    remaining_df = remove_recommended(remaining_df, load_recommended(config))
     return prefered_df, remaining_df
 
 def show_df_size(df: pl.DataFrame, name: str):
