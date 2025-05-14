@@ -23,7 +23,7 @@ def download_dataset(config: Config, start_year_override: Optional[int] = None):
         logger.info(f"Overriding dataset download start year to: {base_start_year}")
 
     # Ensure preference_start_year is also considered for the min year
-    start_year = max(2017, min(base_start_year, data_config.preference_start_year))
+    start_year = max(2017, min(base_start_year, data_config.preference_start_year, data_config.background_start_year))
     
     cur_year = time.localtime().tm_year
     logger.info(f"Effective start year for download: {start_year}, Current year: {cur_year}")
@@ -81,42 +81,12 @@ def remove_recommended(remaining_df: pl.LazyFrame, recommended_df: pl.DataFrame)
     remaining_df = remaining_df.filter(~pl.col("id").is_in(recommended_ids))
     return remaining_df
 
-def load_dataset(config: Config, manual_start_year: Optional[int] = None, arxiv_ids_list: Optional[List[str]] = None) -> tuple[pl.LazyFrame, pl.LazyFrame]:
+def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
     data_config = config.recommend_pipeline.data
     preferences = load_preference(config)
-
-    # Determine the start year for downloading data
-    effective_start_year = data_config.background_start_year
-    if manual_start_year is not None:
-        effective_start_year = min(effective_start_year, manual_start_year)
-        logger.info(f"Manual start year provided: {manual_start_year}. Effective start year for data loading: {effective_start_year}")
     
-    # Adjust download_dataset to use this effective_start_year
-    # This requires download_dataset to be modified to accept a start_year parameter
-    # For now, assuming download_dataset is modified or its internal logic respects a more dynamic start year if set in config
-    # Or, we adjust the call here if download_dataset is refactored.
-    # Let's assume for now that download_dataset needs to be passed the effective_start_year.
-    # We'll need to modify download_dataset signature and logic.
+    parquet_paths = download_dataset(config) # Use temp_config with adjusted year
 
-    # Placeholder for modified download_dataset call
-    # parquet_paths = download_dataset(config, start_year_override=effective_start_year) 
-    # Assuming download_dataset is modified to accept start_year_override
-    # For now, we'll proceed with the existing download_dataset and filter later if necessary,
-    # or rely on the fact that it downloads a range and we filter from that.
-    # The ideal way is to make download_dataset more flexible.
-    # Let's simulate this by adjusting the config if possible, or filtering after load.
-    
-    # Create a temporary config for data loading if needed to adjust start year
-    temp_data_config = data_config.model_copy()
-    temp_data_config.background_start_year = effective_start_year
-    temp_data_config.preference_start_year = min(data_config.preference_start_year, effective_start_year) # also adjust preference start year if needed
-
-    temp_config = config.model_copy()
-    temp_config.recommend_pipeline.data = temp_data_config
-    
-    parquet_paths = download_dataset(temp_config) # Use temp_config with adjusted year
-
-    logger.info(f"Loading dataset from {parquet_paths} with effective start year {effective_start_year}")
     df = pl.scan_parquet(parquet_paths, allow_missing_columns=True)
     
     categories = config.recommend_pipeline.data.categories

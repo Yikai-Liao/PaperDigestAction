@@ -239,11 +239,6 @@ def predict(model, remaining_df: pl.DataFrame, config: Config, force_include_all
     embedding_columns = data_config.embedding_columns
     if embedding_columns:
         results_df = results_df.drop(*embedding_columns)
-    # 保存结果到CSV
-    output_file = REPO_ROOT / config.recommend_pipeline.predict.output_path
-    
-    # 保存
-    # results_df.write_parquet(output_file)
     
     # 提取并返回推荐的论文
     if "show" not in results_df.columns:
