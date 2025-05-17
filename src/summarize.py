@@ -92,7 +92,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for paper summarization.")
         schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{PaperSummary.schema_json(indent=2)}"
         system_content_for_api += schema_instruction
-        user_prompt_for_api += "Only output the JSON content, do not add any other content."
+        system_content_for_api += "Only output the JSON content, do not add any other content."
 
     output_path = REPO_ROOT / "arxiv/summary"
     output_path.mkdir(parents=True, exist_ok=True)
