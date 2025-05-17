@@ -92,6 +92,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for paper summarization.")
         schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{PaperSummary.schema_json(indent=2)}"
         system_content_for_api += schema_instruction
+        user_prompt_for_api += "Only output the JSON content, do not add any other content."
 
     output_path = REPO_ROOT / "arxiv/summary"
     output_path.mkdir(parents=True, exist_ok=True)
@@ -109,7 +110,6 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
                         {"role": "system", "content": system_content_for_api},
                         {"role": "user", "content": f"The content of the paper is as follows:\n\n\n{paper_content}"},
                     ],
-                    response_format={"type": "json_object"},
                 )
                 json_content = raw_response.choices[0].message.content
                 summary = PaperSummary.model_validate_json(json_content)
@@ -215,6 +215,7 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for keyword merging.")
         schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{KeywordMerge.schema_json(indent=2)}"
         user_prompt_for_api += schema_instruction
+        user_prompt_for_api += "Only output the JSON content, do not add any other content."
             
     logger.debug(f"Keyword merge prompt: {user_prompt_for_api}")
     
@@ -228,7 +229,6 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
                     {"role": "system", "content": "You are a keyword merging expert, specializing in mapping redundant or incorrect keywords to standard keywords."},
                     {"role": "user", "content": user_prompt_for_api},
                 ],
-                response_format={"type": "json_object"},
             )
             json_content = raw_response.choices[0].message.content
             parsed_result = KeywordMerge.model_validate_json(json_content)
