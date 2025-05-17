@@ -90,7 +90,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     
     if not native_json_schema:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for paper summarization.")
-        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{PaperSummary.schema_json(indent=2)}"
+        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{PaperSummary.model_json_schema()}"
         system_content_for_api += schema_instruction
         system_content_for_api += "Only output the JSON content, do not add any other content."
 
@@ -213,7 +213,7 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
     user_prompt_for_api = base_user_prompt
     if not native_json_schema:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for keyword merging.")
-        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{KeywordMerge.schema_json(indent=2)}"
+        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{KeywordMerge.model_json_schema()}"
         user_prompt_for_api += schema_instruction
         user_prompt_for_api += "Only output the JSON content, do not add any other content."
             
@@ -247,24 +247,24 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
             parsed_result = api_response.choices[0].message.parsed
         
         logger.debug(f"Keyword merge response draft: {parsed_result.draft}")
-        merged_keywords_map = parsed_result.merged_keywords # Renamed
-        logger.info(f"Keyword merging finished: {merged_keywords_map}")
+        merged_keywords = parsed_result.merged_keywords # Renamed
+        logger.info(f"Keyword merging finished: {merged_keywords}")
         
         # Update keyword list using the mapping, replace redundant keywords with standard ones
-        def update_keywords_list(kws: List[str]) -> List[str]: # Renamed param
-            if not kws: # Check if list is empty
-                return kws
+        def update_keywords(keywords):
+            if len(keywords) == 0:
+                return keywords
             updated = set()
-            for kw_item in kws: # Renamed loop var
-                if kw_item in merged_keywords_map and merged_keywords_map[kw_item]: # Check if list is not empty
-                    # Add all corresponding standard keywords
-                    updated.update(merged_keywords_map[kw_item])
+            for kw in keywords:
+                if kw in merged_keywords and len(merged_keywords[kw]) > 0:
+                    # 将所有对应的规范关键词都添加进去
+                    updated.update(merged_keywords[kw])
                 else:
-                    updated.add(kw_item)
+                    updated.add(kw)
             return list(updated)
             
         results_df = results_df.with_columns(
-            pl.col("keywords").map_elements(update_keywords_list, return_dtype=pl.List(pl.Utf8)).alias("keywords")
+            pl.col("keywords").map_elements(update_keywords, return_dtype=pl.List(pl.Utf8)).alias("keywords")
         )
         
         return results_df
@@ -394,65 +394,50 @@ if __name__ == "__main__":
     from src.trainer import train_model
     from src.sampler import predict
 
-    config_instance = Config.default() # Renamed
-    # Ensure data loading happens correctly
+    config = Config.default()
+    # # Ensure data loading happens correctly
     try:
-        prefered_df_lazy, remaining_df_lazy = load_dataset(config_instance)
+        prefered_df_lazy, remaining_df_lazy = load_dataset(config)
         prefered_df = prefered_df_lazy.collect()
         remaining_df = remaining_df_lazy.collect()
     except Exception as e:
-        logger.error(f"Failed to load dataset: {e}")
+        logger.error(f"加载数据集失败: {e}")
         sys.exit(1)
 
     if prefered_df.is_empty() or remaining_df.is_empty():
-        logger.error("Preference dataset or remaining data is empty, cannot continue model training. Please check data sources and configuration.")
+        logger.error("偏好数据集或剩余数据为空，无法继续模型训练。请检查数据源和配置。")
         sys.exit(1)
         
-    final_model = train_model(prefered_df, remaining_df, config_instance)
+    final_model = train_model(prefered_df, remaining_df, config)
     
     # Ensure predict_and_save returns a DataFrame
-    recommended_df_output = predict(final_model, remaining_df, config_instance)
+    recommended_df_output = predict(final_model, remaining_df, config)
     
-    processed_recommended_df = None # Renamed
     if recommended_df_output is None:
-        logger.error("Model prediction did not return a recommended DataFrame (recommended_df_output is None).")
-        logger.info("Will use an empty recommended_df for paper extraction and conversion (if no recommendations).")
-        processed_recommended_df = pl.DataFrame({'id': []}, schema={'id': pl.Utf8}) # Ensure schema for empty df
+        logger.error("模型预测未返回推荐数据框 (recommended_df is None)。")
+        # Create an empty DataFrame with an 'id' column if you want to test extract_and_convert_papers
+        # For example: recommended_df = pl.DataFrame({'id': []}) 
+        # Or exit if this is critical
+        logger.info("将使用空的 recommended_df 进行论文提取和转换（如果没有推荐）。")
+        recommended_df = pl.DataFrame({'id': []}) # Ensure it's a DataFrame
     elif isinstance(recommended_df_output, pl.DataFrame):
-        processed_recommended_df = recommended_df_output
+        recommended_df = recommended_df_output
     else:
-        logger.error(f"predict_and_save returned an unexpected type: {type(recommended_df_output)}. Expected polars.DataFrame.")
-        sys.exit(1)
+        logger.error(f"predict_and_save 返回了意外的类型: {type(recommended_df_output)}。期望 polars.DataFrame。")
+        exit(1)
 
 
-    logger.info("Model training and prediction completed successfully.")
+    logger.info("模型训练和预测成功完成。")
     
-    # Call function to extract and convert papers
-    if processed_recommended_df.is_empty():
-        logger.info("No recommended papers to extract and convert.")
-        # Initialize results_df as empty if no papers to summarize
-        summarized_results_df = pl.DataFrame()
+    # 调用函数来提取和转换论文
+    if recommended_df.is_empty():
+        logger.info("没有推荐的论文可供提取和转换。")
     else:
-        summarized_results_df = summarize(processed_recommended_df, config_instance) # Renamed
-        if not summarized_results_df.is_empty():
-             summarized_results_df.write_parquet(REPO_ROOT / "summarized.parquet")
-        else:
-            logger.info("Summarization resulted in an empty DataFrame. Not writing parquet file.")
+        results = summarize(recommended_df, config)
+        results.write_parquet(REPO_ROOT / "summarized.parquet")
     
-    # Ensure summarized_results_df is loaded or initialized before merging keywords
-    if not (REPO_ROOT / "summarized.parquet").exists() and summarized_results_df.is_empty():
-        logger.info("No summarized data to merge keywords from. Skipping keyword merge.")
-    else:
-        if summarized_results_df.is_empty() and (REPO_ROOT / "summarized.parquet").exists():
-             logger.info("Loading summarized results from parquet for keyword merging.")
-             summarized_results_df = pl.read_parquet(REPO_ROOT / "summarized.parquet")
-
-        if not summarized_results_df.is_empty():
-            merged_df = merge_keywords(summarized_results_df, config_instance) # Renamed
-            merged_df.write_parquet(REPO_ROOT / "summarized.parquet") # Overwrite with merged
-            logger.info("Keyword merging completed and saved.")
-        else:
-            logger.info("Summarized results are empty, skipping keyword merge.")
-            
-    logger.info("Script execution finished!")
-
+    results = pl.read_parquet(REPO_ROOT / "summarized.parquet")
+    merged = merge_keywords(results, config)
+    merged.write_parquet(REPO_ROOT / "summarized.parquet")
+    logger.info("关键词合并完成并保存。")
+    logger.info("脚本执行完毕！")
