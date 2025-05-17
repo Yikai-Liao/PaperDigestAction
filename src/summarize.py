@@ -90,7 +90,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     
     if not native_json_schema:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for paper summarization.")
-        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{PaperSummary.model_json_schema(indent=2)}"
+        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{PaperSummary.schema_json(indent=2)}"
         system_content_for_api += schema_instruction
 
     output_path = REPO_ROOT / "arxiv/summary"
@@ -213,7 +213,7 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
     user_prompt_for_api = base_user_prompt
     if not native_json_schema:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for keyword merging.")
-        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{KeywordMerge.model_json_schema(indent=2)}"
+        schema_instruction = f"\nPlease ensure your output strictly adheres to the following Pydantic model's JSON Schema definition:\n{KeywordMerge.schema_json(indent=2)}"
         user_prompt_for_api += schema_instruction
             
     logger.debug(f"Keyword merge prompt: {user_prompt_for_api}")
