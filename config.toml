@@ -34,7 +34,7 @@ output_path = "./recommendations.parquet"
 output_dir = "./pdfs"
 delay = 3
 max_retry = 3
-model = "gemini-2.5-flash" # alias in llms
+model = "deepseek-r1" # alias in llms
 language = "zh"
 enable_latex = false
 
@@ -74,3 +74,21 @@ api_key = "env:GEMINI_API_KEY"
 temperature = 0.1
 top_p = 0.8
 num_workers = 2
+
+[[llms]]
+alias = "deepseek-v3"
+name = "deepseek-chat"
+base_url = "https://api.deepseek.com"
+api_key = "env:DEEPSEEK_API_KEY"
+temperature = 0.7
+top_p = 0.8
+num_workers = 4
+
+[[llms]]
+alias = "deepseek-r1"
+name = "deepseek-reasoner"
+base_url = "https://api.deepseek.com"
+api_key = "env:DEEPSEEK_API_KEY"
+temperature = 0.7
+top_p = 0.8
+num_workers = 4
