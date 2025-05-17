@@ -34,7 +34,7 @@ output_path = "./recommendations.parquet"
 output_dir = "./pdfs"
 delay = 3
 max_retry = 3
-model = "deepseek-r1" # alias in llms
+model = "deepseek-v3" # alias in llms
 language = "zh"
 enable_latex = false
 
