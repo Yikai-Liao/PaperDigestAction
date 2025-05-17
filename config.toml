@@ -34,7 +34,7 @@ output_path = "./recommendations.parquet"
 output_dir = "./pdfs"
 delay = 3
 max_retry = 3
-model = "doubao-1.5-pro" # alias in llms
+model = "grok-3-mini" # alias in llms
 language = "zh"
 enable_latex = false
 
@@ -94,12 +94,12 @@ reasoning_effort = 'high'
 # top_p = 0.8
 # num_workers = 4
 
-[[llms]]
-alias = "doubao-1.5-pro"
-name = "doubao-1-5-thinking-pro-250415"
-base_url = "https://ark.cn-beijing.volces.com/api/v3"
-api_key = "env:DOUBAO_API_KEY"
-temperature = 0.1
-top_p = 0.8
-num_workers = 10
-reasoning_effort = 'high'
+# [[llms]]
+# alias = "doubao-1.5-pro"
+# name = "doubao-1-5-thinking-pro-250415"
+# base_url = "https://ark.cn-beijing.volces.com/api/v3"
+# api_key = "env:DOUBAO_API_KEY"
+# temperature = 0.1
+# top_p = 0.8
+# num_workers = 10
+# reasoning_effort = 'high'
