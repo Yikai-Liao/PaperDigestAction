@@ -1,4 +1,4 @@
-name: Paper Summarization
+name: Paper Summarization Pipeline
 
 on:
   workflow_dispatch:
