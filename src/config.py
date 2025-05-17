@@ -90,6 +90,7 @@ class LLMConfig(BaseModel):
     top_p: float = Field(0.8, description="Top-p parameter")
     num_workers: int = Field(1, description="Number of worker threads")
     reasoning_effort: Optional[str] = Field(None, description="Reasoning effort level")
+    native_json_schema: bool = Field(True, description="Use native JSON schema in openai compatible api")
 
 
 class Config(BaseModel):
