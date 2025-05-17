@@ -18,7 +18,7 @@ jobs:
           activate-environment: true
           enable-cache: true
           cache-suffix: "paper-digest-action"
-          cache-dependency-glob: "**/pyproject.toml|**/uv.lock"
+          cache-dependency-glob: "uv.lock"
 
       - name: Install dependencies
         run: |
@@ -42,7 +42,7 @@ jobs:
       #       echo "数据缓存命中，使用缓存的数据"
       #     else
       #       echo "未找到数据缓存，将在运行过程中创建新的缓存"
-          fi
+      #     fi
         
       - name: Run recommendation script
         env:
