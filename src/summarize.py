@@ -138,7 +138,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     results_df = pl.from_dicts(list(results.values()))
     return results_df
     
-def merge_keywords(results_df: pl.DataFrame, config: Config) -> dict[str, list[str]]:
+def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
     """
     使用LLM合并相似关键词，消除重复，并更新数据框中的关键词列表。
     
@@ -151,13 +151,13 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> dict[str, list[s
     """
     if 'keywords' not in results_df.columns or results_df.is_empty():
         logger.error("数据框中缺少 'keywords' 列或为空，无法进行关键词合并")
-        return {}
+        return results_df
         
     all_keywords = results_df['keywords'].to_list()  # list[list[str]]
     llm_config = config.get_model(config.summary_pipeline.pdf.model)
     if llm_config is None:
         logger.error(f"未找到模型配置: {config.summary_pipeline.pdf.model}")
-        return {}
+        return results_df
         
     client = OpenAI(
         api_key=llm_config.api_key,
@@ -218,7 +218,7 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> dict[str, list[s
         return results_df
     except Exception as e:
         logger.error(f"关键词合并过程中发生错误: {str(e)}")
-        return {}
+        return results_df
 
     
 
