@@ -34,7 +34,7 @@ output_path = "./recommendations.parquet"
 output_dir = "./pdfs"
 delay = 3
 max_retry = 3
-model = "grok-3-mini" # alias in llms
+model = "gemini-2.5-pro" # alias in llms
 language = "zh"
 enable_latex = false
 
@@ -58,7 +58,7 @@ num_workers = 10
 reasoning_effort = 'high'
 
 [[llms]]
-alias = "gemini-2.5"
+alias = "gemini-2.5-pro"
 name = "gemini-2.5-pro-exp-03-25"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
 api_key = "env:GEMINI_API_KEY"
