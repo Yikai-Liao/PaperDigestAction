@@ -57,6 +57,7 @@ jobs:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }} # If summarization uses XAI
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # If summarization uses Gemini
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DOUBAO_API_KEY: ${{ secrets.DOUBAO_API_KEY }}
         run: python script/summarize.py --arxiv_ids "${{ github.event.inputs.arxiv_ids }}"
 
       - name: Upload summarized artifact
