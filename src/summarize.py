@@ -21,7 +21,40 @@ from tqdm import tqdm
 from multiprocessing.dummy import Pool
 from openai import OpenAI
 from itertools import chain
+from timeout_decorator import timeout_decorator
+import logging
+import inspect
 
+class InterceptHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        # Get corresponding Loguru level if it exists.
+        try:
+            level: str | int = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Find caller from where originated the logged message.
+        frame, depth = inspect.currentframe(), 0
+        while frame:
+            filename = frame.f_code.co_filename
+            is_logging = filename == logging.__file__
+            is_frozen = "importlib" in filename and "_bootstrap" in filename
+            if depth > 0 and not (is_logging or is_frozen):
+                break
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+# Configure logging to use loguru
+logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+
+# Set loguru to only show INFO and above
+logger.remove()  # Remove default handler
+logger.add(sys.stderr, level="INFO")  # Add new handler with INFO level
+
+# Set root logger to ERROR level to reduce noise
+logging.getLogger().setLevel(logging.ERROR)
 
 class PaperSummary(BaseModel):
     institution: List[str] = Field(description="The institution where the research was conducted. For example: ['Carnegie Mellon University', 'Stanford University', 'University of California, Berkeley'].")
@@ -272,8 +305,34 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
         logger.error(f"Error during keyword merging: {str(e)}")
         return results_df
 
+@timeout_decorator.timeout(5)
+def latex_file_to_json_str(latex_tar_gz_file: str | Path) -> str:
+    # Set TexReader and related logging to ERROR level only
+    loggers_to_silence = [
+        'latex2json',
+        'latex2json.tex_reader', 
+        'latex2json.parser',
+        'tex_reader',
+        'chardet',
+        'chardet.charsetgroupprober',
+        'chardet.universaldetector',
+        'charset_normalizer'
+    ]
     
-
+    for logger_name in loggers_to_silence:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
+    
+    # Also silence the root logger temporarily
+    original_level = logging.getLogger().level
+    logging.getLogger().setLevel(logging.ERROR)
+    
+    try:
+        tex_reader = TexReader() # Initialize TexReader once
+        structured_data_obj = tex_reader.process(str(latex_tar_gz_file))
+        return tex_reader.to_json(structured_data_obj)
+    finally:
+        # Restore original logging level
+        logging.getLogger().setLevel(original_level)
 
 def extract_and_convert_papers(recommended_df: pl.DataFrame) -> dict[str, str]:
     """
@@ -300,7 +359,6 @@ def extract_and_convert_papers(recommended_df: pl.DataFrame) -> dict[str, str]:
     arxiv_ids = recommended_df['id'].to_list()
     logger.info(f"Starting to process {len(arxiv_ids)} papers for extraction and conversion.")
     
-    tex_reader = TexReader() # Initialize TexReader once
     conversion_results ={} # Renamed
 
     for idx, arxiv_id in enumerate(arxiv_ids):
@@ -342,13 +400,7 @@ def extract_and_convert_papers(recommended_df: pl.DataFrame) -> dict[str, str]:
         if not json_file.exists():
             try:
                 logger.info(f"Processing with TexReader: {latex_tar_gz_file}")
-                structured_data_obj = tex_reader.process(str(latex_tar_gz_file))
-                json_output_str = tex_reader.to_json(structured_data_obj)
-                # structured_data_obj should be the Python object after process, 
-                # to_json serializes it. For json_to_markdown, we need the object.
-                # If tex_reader.process already returns a serializable list/dict, 
-                # then json.loads might not be needed if json_output_str is already that.
-                # Assuming tex_reader.to_json returns a string that needs to be saved and then re-parsed for md conversion.
+                json_output_str = latex_file_to_json_str(latex_tar_gz_file)
                 with open(json_file, 'w', encoding='utf-8') as f:
                     f.write(json_output_str)
                 logger.info(f"Saved JSON file: {json_file}")

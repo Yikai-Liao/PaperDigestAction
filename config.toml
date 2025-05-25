@@ -76,6 +76,7 @@ top_p = 0.8
 num_workers = 2
 reasoning_effort = 'high'
 
+# ❗DeepSeek failed to output correct JSON format
 # [[llms]]
 # alias = "deepseek-v3"
 # name = "deepseek-chat"
@@ -103,6 +104,6 @@ base_url = "https://ark.cn-beijing.volces.com/api/v3"
 api_key = "env:DOUBAO_API_KEY"
 temperature = 0.1
 top_p = 0.8
-num_workers = 10
+num_workers = 20
 reasoning_effort = 'high'
 native_json_schema = false
