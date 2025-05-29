@@ -24,6 +24,7 @@ from itertools import chain
 from timeout_decorator import timeout_decorator
 import logging
 import inspect
+import re # Import re for wildcard matching
 
 class InterceptHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
@@ -67,23 +68,84 @@ class PaperSummary(BaseModel):
     keywords: List[str] = Field(description="When extracting keywords, each word should be capitalized. Spaces can be used within keywords, such as 'Proxy Model'. Keywords are used to discover connections within the article, so please use more general keywords. For example: LLM, Proxy Model, Distillation, Sampling, Reasoning.")
     further_thoughts: str = Field(description="Any kind of further thoughts, but it should be deep and insightful. It could be diverse, and related to other areas or articles, but you need to find the relation and make it insightful.")
 
+class KeywordMap(BaseModel):
+    """Model representing a single keyword mapping"""
+    key: str = Field(description="The redundant or incorrect keyword")
+    values: List[str] = Field(description="List of standard replacement keywords")
+
 class KeywordMerge(BaseModel):
     draft: str = Field(description="Please reasoning step by step here to get a more accurate and explainable merged_keywords.")
-    merged_keywords: dict[str, list[str]] = Field(description="A dictionary mapping redundant or incorrect keywords to their corresponding standard keyword lists. The keys are the redundant/incorrect keywords, and the values are lists of standard keywords. For example: {'LLM': ['LLMs'], 'Large Language Model': ['LLMs'], 'Efficient LLM': ['Efficient', 'LLMs']}. If a keyword doesn't need to be changed, it should not be included in this dictionary.")
+    merged_keywords: List[KeywordMap] = Field(
+        description="A list of keyword mappings where each item maps a redundant keyword to its standard replacements",
+    )
 
-    @model_validator(mode='before')
-    @classmethod
-    def ensure_merged_keywords_not_empty(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "merged_keywords" in data and not data["merged_keywords"]:
-            logger.warning("Pydantic validator: 'merged_keywords' is empty. Inserting dummy entry.")
-            data["merged_keywords"] = {"NoChange": []}
-        return data
+def load_cached_summaries(paper_ids: List[str], config: Config) -> pl.DataFrame:
+    """
+    Loads cached paper summaries from Hugging Face Datasets based on paper IDs and configuration.
 
+    Args:
+        paper_ids: A list of paper IDs (arxiv_ids) to look for in the cache.
+        config: The configuration object, used to determine acceptable cache models and target language.
+
+    Returns:
+        A Polars DataFrame containing the cached summaries that match the criteria.
+        Returns an empty DataFrame if no cached summaries are found or an error occurs.
+    """
+    logger.info(f"Loading cached summaries for {len(paper_ids)} paper IDs.")
+    if not paper_ids:
+        logger.info("No paper IDs provided to load_cached_summaries.")
+        return pl.DataFrame()
+
+    acceptable_cache_models = config.summary_pipeline.pdf.acceptable_cache_model
+    target_language = config.summary_pipeline.pdf.language
+    hf_dataset_repo_base = "hf://datasets/lyk/ArxivSummarize"
+
+    # Determine unique prefixes from paper_ids
+    unique_prefixes = set()
+    for pid in paper_ids:
+        match = re.match(r"^(\d{4})\.", pid)
+        if match:
+            unique_prefixes.add(match.group(1))
+    
+    if not unique_prefixes:
+        logger.warning("No valid prefixes could be extracted from the provided paper_ids.")
+        return pl.DataFrame()
+
+    links = [f"{hf_dataset_repo_base}/{prefix}.jsonl" for prefix in unique_prefixes]
+    dfs = []
+    for link in links:
+        try:
+            dfs.append(pl.read_ndjson(link))
+        except Exception as e:
+            logger.warning(f"Failed to read dataset from {link}: {e}")
+    if not dfs:
+        logger.error("No valid datasets were loaded from the provided links.")
+        return pl.DataFrame()
+    df = pl.concat(dfs)
+    logger.info(f"Loaded {df.height} cached summaries from {len(links)} links.")
+
+    df = df.lazy().filter(
+        (pl.col("id").is_in(pl.Series(paper_ids).implode())) &
+        (pl.col("lang") == target_language) &
+        (pl.col("model").str.contains(r"^(" + '|'.join(acceptable_cache_models) + r")"))
+    )
+    # sort by time, and unique by id to keep the latest version of each paper
+    df = df.sort("summary_time", descending=True).unique(subset="id", keep="first").collect()
+    logger.info(f"Loaded {df.height} cached summaries for {len(paper_ids)} requested paper IDs.")
+    # add column 'preference' with default value 'unknown'
+    if 'preference' not in df.columns:
+        df = df.with_columns(pl.lit('unknown').alias('preference'))
+    return df
+    
 def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     """
-    Summarize using AI
+    Summarize using AI, with a caching layer.
     """
-    markdonws: dict[str, str] = extract_and_convert_papers(recommended_df)
+    # Step 1: Load cached summaries
+    cached_df = load_cached_summaries(recommended_df["id"].to_list(), config)
+    uncached_df = recommended_df.filter(~pl.col("id").is_in(cached_df["id"]))
+
+    markdowns: dict[str, str] = extract_and_convert_papers(uncached_df)
 
     llm_config = config.get_model(config.summary_pipeline.pdf.model)
     
@@ -195,10 +257,12 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     
     # Using multi-threading
     with Pool(llm_config.num_workers) as pool:
-        results = list(tqdm(pool.imap(proc_one, markdonws.keys()), total=len(markdonws), desc="Processing papers"))
+        results = list(tqdm(pool.imap(proc_one, markdowns.keys()), total=len(markdowns), desc="Processing papers"))
     
     meta_datas = {data['id']: data for data in recommended_df.to_dicts()}
     results = {result['id']: result for result in results if 'error' not in result}
+    for cached_data in cached_df.to_dicts():
+        results[cached_data['id']] = cached_data # Add cached data to results
     
     for k, v in results.items():
         if k in meta_datas: # Ensure key exists before updating
@@ -212,7 +276,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
         
     results_df = pl.from_dicts(list(results.values()))
     return results_df
-    
+
 def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
     """
     Merge similar keywords using LLM, eliminate duplicates, and update the keyword list in the DataFrame.
@@ -250,7 +314,6 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
     However, there might be multiple elements, for instance, 'Efficient Adaptive System' maps to ['Efficient', 'Adaptive System'].
     Please refer to the following keyword list as the preferred choice for standard keywords: {json.dumps(reference_keywords_list, ensure_ascii=False)}.
     If no suitable standard keyword exists in the current list, you can create a new one, but maintain a similar conceptual level. If a keyword does not need to be changed, you do not need to process it. Do not generate redundant content like 'AI in Security': ['AI in Security'] as it has no modifications.
-    IMPORTANT: The 'merged_keywords' field in your JSON output MUST NOT be an empty object. If there are no keywords that need to be merged or changed, you MUST include a dummy entry like {{"NoChange": []}} in the 'merged_keywords' dictionary to satisfy the schema requirements. This is crucial for successful API parsing.
     However, please be very careful not to over-merge keywords or lose significant information a keyword can provide. For example, merging 'Gradient Estimation': ['Efficiency'] or 'Zeroth-Order Optimization': ['Efficiency'] is incorrect as it eliminates valid information.
     The most common case you need to handle is merging synonymous keywords like 'LLM': ['Large Language Model'].
     Overly verbose keywords (e.g., using four or five words) should be split into a combination of concise keywords. I encourage using conceptual combinations to represent new concepts.
@@ -313,7 +376,8 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
             parsed_result = api_response.choices[0].message.parsed
         
         logger.debug(f"Keyword merge response draft: {parsed_result.draft}")
-        merged_keywords = parsed_result.merged_keywords # Renamed
+        merged_keywords = parsed_result.merged_keywords
+        merged_keywords = {kw.key: kw.values for kw in merged_keywords}  # Convert to dict for easier access
         logger.info(f"Keyword merging finished: {merged_keywords}")
         
         # Update keyword list using the mapping, replace redundant keywords with standard ones
@@ -459,7 +523,7 @@ def extract_and_convert_papers(recommended_df: pl.DataFrame) -> dict[str, str]:
             except Exception as e:
                 logger.error(f"Failed to load JSON file {json_file}: {e}")
                 continue
-
+ 
         # 3. Convert to Markdown
         if structured_data_obj is not None:
             try:
@@ -474,8 +538,6 @@ def extract_and_convert_papers(recommended_df: pl.DataFrame) -> dict[str, str]:
             logger.warning(f"Skipping Markdown conversion for {arxiv_id} due to missing structured data.")
             
     return conversion_results
-
-
 
 
 if __name__ == "__main__":

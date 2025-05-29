@@ -104,15 +104,41 @@ class Archiver:
             file_path: JSONL文件路径
             df: 要追加的DataFrame
         """
-        # 转换为排序后的字典列表
-        sorted_data = df.sort("id").to_dicts()
+        # Convert new DataFrame to a list of dictionaries
+        new_records = df.to_dicts()
+
+        # Read existing data and build a dictionary for efficient lookup and update
+        existing_records_map: Dict[str, Dict[str, Any]] = {}
+        if file_path.exists():
+            try:
+                with file_path.open("r", encoding='utf-8') as f:
+                    for line in f:
+                        record = json.loads(line)
+                        if "id" in record:
+                            existing_records_map[record["id"]] = record
+                logger.info(f"Read {len(existing_records_map)} existing records from {file_path}.")
+            except Exception as e:
+                logger.warning(f"Could not read existing JSONL file {file_path}: {e}. Treating as empty.")
+                existing_records_map = {} # Reset to empty if reading fails
+
+        # Process new records: add them or overwrite existing ones by 'id'.
+        # The dictionary assignment `existing_records_map[record["id"]] = record`
+        # naturally handles both adding new unique IDs and overwriting records
+        # with matching IDs from the new data. This is the desired "覆盖" (overwrite) behavior.
+        for record in new_records:
+            if "id" in record:
+                logger.warning(f"ID {record['id']} already exists, overwriting with new data.")
+            existing_records_map[record["id"]] = record
         
-        # 追加写入文件
+        # Convert map values back to a list and sort by 'id' to ensure overall order.
+        final_records = sorted(existing_records_map.values(), key=lambda x: x.get("id"))
+        
+        # Write the entire deduplicated and sorted list back to the file, overwriting its previous content.
         try:
-            with file_path.open("a", encoding='utf-8') as f:
-                for record in sorted_data:
+            with file_path.open("w", encoding='utf-8') as f: # Use "w" to overwrite the file
+                for record in final_records:
                     f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            logger.success(f"Appended {len(sorted_data)} records to {file_path}.")
+            logger.success(f"Archived {len(final_records)} unique records to {file_path}.")
         except IOError as e:
             logger.error(f"Failed to write to {file_path}: {e}")
             raise

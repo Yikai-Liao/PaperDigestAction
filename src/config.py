@@ -70,6 +70,7 @@ class PdfConfig(BaseModel):
     model: str = Field("grok-3", description="Language model alias to use")
     language: str = Field("en", description="Language for processing")
     enable_latex: bool = Field(False, description="Enable LaTeX in AI summary")
+    acceptable_cache_model: List[str] = Field(default_factory=lambda: [ "gemini-2.5*", "deepseek*", "grok-3-*" ], description="List of acceptable models for caching, allowing wildcards (e.g., 'gemini-2.5*')")
 
 
 class SummaryPipelineConfig(BaseModel):
