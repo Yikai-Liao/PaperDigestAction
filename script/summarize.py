@@ -53,8 +53,8 @@ def main():
     if recommended_df.is_empty() or 'show' not in recommended_df.columns:
         logger.error("Prediction step did not return a valid DataFrame with 'show' column. Cannot proceed.")
         empty_df = pl.DataFrame()
-        empty_df.write_parquet(REPO_ROOT / "manual_summarized.parquet")
-        logger.info("Empty manual_summarized.parquet created due to prediction error.")
+        empty_df.write_parquet(REPO_ROOT / "summarized.parquet")
+        logger.info("Empty summarized.parquet created due to prediction error.")
         return
 
     papers_to_summarize = recommended_df.filter(pl.col('show') == 1)
@@ -67,6 +67,7 @@ def main():
     logger.info("Merging keywords...")
     summarized_df = merge_keywords(summarized_df, config)
     logger.info("Keyword merging completed.")
+    summarized_df.write_parquet(REPO_ROOT / "summarized.parquet")
 
     archive_summaries(summarized_df)
 

@@ -71,4 +71,10 @@ jobs:
             git push
           fi
 
+      - name: Upload summarized.parquet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: summarized
+          path: summarized.parquet
+
 

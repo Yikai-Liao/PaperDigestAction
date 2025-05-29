@@ -25,5 +25,6 @@ if __name__ == "__main__":
     recommended_df = predict(final_model, remaining_df, config)
     summarized_df = summarize(recommended_df, config)
     summarized_df = merge_keywords(summarized_df, config)
+    summarized_df.write_parquet(REPO_ROOT / "summarized.parquet")
     archive_summaries(summarized_df)
     logger.info("Final model training successfully completed")
