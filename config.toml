@@ -34,7 +34,7 @@ output_path = "./recommendations.parquet"
 output_dir = "./pdfs"
 delay = 3
 max_retry = 3
-model = "doubao-1.5-pro" # alias in llms
+model = "deepseek-r1" # alias in llms
 language = "zh"
 enable_latex = false
 
@@ -87,15 +87,15 @@ reasoning_effort = 'high'
 # num_workers = 4
 # native_json_schema = false
 
-# [[llms]]
-# alias = "deepseek-r1"
-# name = "deepseek-reasoner"
-# base_url = "https://api.deepseek.com"
-# api_key = "env:DEEPSEEK_API_KEY"
-# temperature = 0.7
-# top_p = 0.8
-# num_workers = 4
-# native_json_schema = false
+[[llms]]
+alias = "deepseek-r1"
+name = "deepseek-reasoner"
+base_url = "https://api.deepseek.com"
+api_key = "env:DEEPSEEK_API_KEY"
+temperature = 0.7
+top_p = 0.8
+num_workers = 4
+native_json_schema = false
 
 [[llms]]
 alias = "doubao-1.5-pro"
