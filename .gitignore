@@ -3,5 +3,7 @@
 cache
 predictions.parquet
 recommendations.parquet
-summarized.parquet
+./summarized.parquet
 arxiv
+merged_keywords.json
+test/data/merged_keywords_test_output.parquet
