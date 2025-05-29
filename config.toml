@@ -5,7 +5,6 @@ categories = ["cs.CL", "cs.CV", "cs.AI", "cs.LG", "stat.ML", "cs.IR", "cs.CY"]
 embedding_columns = ["jasper_v1", "conan_v1"]
 preference_dir = "./preference"
 cache_dir = "./cache"
-content_repo_id = "lyk/PaperDigestDataBase"
 
 background_start_year = 2024
 preference_start_year = 2023
