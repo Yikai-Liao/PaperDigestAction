@@ -2,6 +2,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Optional, List
+from huggingface_hub import hf_hub_download
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
