@@ -6,7 +6,6 @@ from typing import Optional, List
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(REPO_ROOT))
 
-from huggingface_hub import hf_hub_download
 from src.config import Config
 from loguru import logger
 import polars as pl
@@ -46,18 +45,39 @@ def download_dataset(config: Config, start_year_override: Optional[int] = None):
         )
     return cache_paths
 
-def load_recommended(config: Config) -> pl.DataFrame:
+def load_local_summarized() -> pl.DataFrame:
     """
-    Raw data dir contains lots of json files like 2407.0288.json
-    We need to extract the Arxiv ID from the filename
-    and collect all the IDs into a pl.DataFrame
+    Loads all summarized data from the 'summarized/' folder.
+    Uses polars.scan_ndjson to efficiently read all JSONL files.
+    Returns an empty DataFrame if no data is found.
     """
-    # raw_dir = REPO_ROOT / config.get("raw_data_dir", "raw")
-    # if not raw_dir.exists():
-        # return pl.DataFrame(columns=["id"], schema={"id": pl.String})
-    content_repo = config.recommend_pipeline.data.content_repo_id
-    recommended = pl.scan_parquet(f"hf://datasets/{content_repo}/main.parquet").collect()
-    return recommended
+    summarized_dir = REPO_ROOT / "summarized"
+    if not summarized_dir.exists():
+        logger.info(f"Summarized directory not found: {summarized_dir}. Returning empty DataFrame.")
+        return pl.DataFrame(schema={"id": pl.String, "summary": pl.String}) # Define schema for empty DataFrame
+
+    try:
+        # Use scan_ndjson to efficiently read all JSONL files
+        # The glob pattern "summarized/*.jsonl" is relative to the current working directory
+        # For REPO_ROOT, it should be REPO_ROOT / "summarized" / "*.jsonl"
+        # However, polars.scan_ndjson expects a string path or list of paths.
+        # Let's use the absolute path for robustness.
+        jsonl_files = list(summarized_dir.glob("*.jsonl"))
+        if not jsonl_files:
+            logger.info(f"No JSONL files found in {summarized_dir}. Returning empty DataFrame.")
+            return pl.DataFrame(schema={"id": pl.String, "summary": pl.String})
+
+        # Convert Path objects to strings for scan_ndjson
+        file_paths_str = [str(p) for p in jsonl_files]
+        
+        # Scan all JSONL files and collect into a single DataFrame
+        df = pl.scan_ndjson(file_paths_str).collect()
+        logger.info(f"Loaded {len(df)} summarized items from {summarized_dir}")
+        return df
+    except Exception as e:
+        logger.error(f"Error loading local summarized data: {e}. Returning empty DataFrame.")
+        return pl.DataFrame(schema={"id": pl.String, "summary": pl.String})
+
 
 def load_preference(config: Config) -> pl.DataFrame:
     preference_dir = REPO_ROOT / config.recommend_pipeline.data.preference_dir
@@ -74,12 +94,6 @@ def load_preference(config: Config) -> pl.DataFrame:
     logger.info(f"{len(preferences)} preference items loaded from {preference_dir}")
     return preferences
 
-def remove_recommended(remaining_df: pl.LazyFrame, recommended_df: pl.DataFrame):
-    # Remove recommended items from remaining_df
-    logger.info("Removing recommended items from remaining_df...")
-    recommended_ids = recommended_df.select("id").to_series()
-    remaining_df = remaining_df.filter(~pl.col("id").is_in(recommended_ids))
-    return remaining_df
 
 def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
     data_config = config.recommend_pipeline.data
@@ -131,7 +145,7 @@ def load_dataset(config: Config) -> tuple[pl.LazyFrame, pl.LazyFrame]:
         remaining_df = remaining_df\
             .with_columns(pl.col("updated").str.slice(0, 4).cast(pl.Int32).alias("year"))\
             .filter(pl.col("year") >= background_start_year)
-    remaining_df = remove_recommended(remaining_df, load_recommended(config))
+    remaining_df = remove_recommended(remaining_df) # Call the updated remove_recommended
     return prefered_df, remaining_df
 
 def show_df_size(df: pl.DataFrame, name: str):
@@ -140,9 +154,16 @@ def show_df_size(df: pl.DataFrame, name: str):
     size_mb = df.estimated_size() / (1024 ** 2)
     logger.debug(f"{name} - Rows: {row_count}, Size: {size_mb:.2f} MB")
 
-def remove_recommended(remaining_df: pl.LazyFrame, recommended_df: pl.DataFrame):
-    # Remove recommended items from remaining_df
+def remove_recommended(remaining_df: pl.LazyFrame) -> pl.LazyFrame:
+    """
+    Removes recommended items from remaining_df by loading local summarized data.
+    """
     logger.info("Removing recommended items from remaining_df...")
+    recommended_df = load_local_summarized()
+    if recommended_df.is_empty():
+        logger.info("No local summarized data found, no items to remove.")
+        return remaining_df
+    
     recommended_ids = recommended_df.select("id").to_series()
     # 使用implode()修复is_in弃用警告
     remaining_df = remaining_df.filter(~pl.col("id").is_in(recommended_ids.implode()))

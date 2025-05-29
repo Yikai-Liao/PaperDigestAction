@@ -8,6 +8,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   summarize:
     runs-on: ubuntu-latest
@@ -60,9 +63,17 @@ jobs:
           DOUBAO_API_KEY: ${{ secrets.DOUBAO_API_KEY }}
         run: python script/summarize.py --arxiv_ids "${{ github.event.inputs.arxiv_ids }}"
 
-      - name: Upload summarized artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: summarized # Changed artifact name
-          path: summarized.parquet # Changed path to match the script output
-          retention-days: 30 # Adjust as needed
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push summarized data
+        run: |
+          if git diff --quiet summarized/; then
+            echo "No changes to summarized data. Skipping commit."
+          else
+            git add summarized/
+            git commit -m "Update summarized data [skip ci]"
+            git push
+          fi

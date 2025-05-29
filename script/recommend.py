@@ -9,6 +9,7 @@ from src.dataloader import load_dataset
 from src.trainer import train_model
 from src.sampler import predict
 from src.summarize import summarize, merge_keywords
+from src.archiver import archive_summaries
 
 from loguru import logger
 
@@ -24,5 +25,5 @@ if __name__ == "__main__":
     recommended_df = predict(final_model, remaining_df, config)
     summarized_df = summarize(recommended_df, config)
     summarized_df = merge_keywords(summarized_df, config)
-    summarized_df.write_parquet(REPO_ROOT / "summarized.parquet")
+    archive_summaries(summarized_df)
     logger.info("Final model training successfully completed")
