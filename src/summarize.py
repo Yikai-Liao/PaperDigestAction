@@ -198,7 +198,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     
     def proc_one(paper_id):
         try:
-            paper_content = markdonws[paper_id] # Renamed to avoid conflict
+            paper_content = markdowns[paper_id] # Renamed to avoid conflict
             logger.info(f"Paper content length for {paper_id}: {len(paper_content)} characters")
             logger.info(f"System content length for API: {len(system_content_for_api)} characters")
             client = OpenAI(

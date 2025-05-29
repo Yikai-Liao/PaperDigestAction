@@ -24,7 +24,7 @@ start_date = ""
 end_date = ""
 high_threshold = 0.85
 boundary_threshold = 0.6
-sample_rate = 0.004
+sample_rate = 0.001
 output_path = "./recommendations.parquet"
 
 [summary_pipeline]
