@@ -15,8 +15,8 @@ import json
 from latex2json import TexReader
 import toml
 import datetime
-from typing import List, Dict, Optional
-from pydantic import BaseModel, Field
+from typing import List, Dict, Optional, Any
+from pydantic import BaseModel, Field, model_validator
 from tqdm import tqdm
 from multiprocessing.dummy import Pool
 from openai import OpenAI
@@ -71,6 +71,14 @@ class KeywordMerge(BaseModel):
     draft: str = Field(description="Please reasoning step by step here to get a more accurate and explainable merged_keywords.")
     merged_keywords: dict[str, list[str]] = Field(description="A dictionary mapping redundant or incorrect keywords to their corresponding standard keyword lists. The keys are the redundant/incorrect keywords, and the values are lists of standard keywords. For example: {'LLM': ['LLMs'], 'Large Language Model': ['LLMs'], 'Efficient LLM': ['Efficient', 'LLMs']}. If a keyword doesn't need to be changed, it should not be included in this dictionary.")
 
+    @model_validator(mode='before')
+    @classmethod
+    def ensure_merged_keywords_not_empty(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "merged_keywords" in data and not data["merged_keywords"]:
+            logger.warning("Pydantic validator: 'merged_keywords' is empty. Inserting dummy entry.")
+            data["merged_keywords"] = {"NoChange": []}
+        return data
+
 def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     """
     Summarize using AI
@@ -84,10 +92,6 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
         exit(1) # Or handle more gracefully, e.g., return pl.DataFrame()
 
     native_json_schema: bool = llm_config.native_json_schema
-    client = OpenAI(
-        api_key=llm_config.api_key,
-        base_url=llm_config.base_url
-    )
 
     with open(REPO_ROOT / "summary_example.json", "r", encoding="utf-8") as f:
         example = f.read()
@@ -133,7 +137,12 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
     def proc_one(paper_id):
         try:
             paper_content = markdonws[paper_id] # Renamed to avoid conflict
-            
+            logger.info(f"Paper content length for {paper_id}: {len(paper_content)} characters")
+            logger.info(f"System content length for API: {len(system_content_for_api)} characters")
+            client = OpenAI(
+                api_key=llm_config.api_key,
+                base_url=llm_config.base_url
+            )
             if not native_json_schema:
                 raw_response = client.chat.completions.create(
                     model=llm_config.name,
@@ -145,6 +154,7 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
                     ],
                 )
                 json_content = raw_response.choices[0].message.content
+                logger.info(f"Raw JSON response content length for {paper_id}: {len(json_content)} characters")
                 summary = PaperSummary.model_validate_json(json_content)
             else:
                 api_response = client.beta.chat.completions.parse(
@@ -152,12 +162,14 @@ def summarize(recommended_df:pl.DataFrame, config: Config) -> pl.DataFrame:
                     temperature=llm_config.temperature,
                     top_p=llm_config.top_p,
                     messages=[
-                        {"role": "system", "content": system_content_for_api}, 
+                        {"role": "system", "content": system_content_for_api},
                         {"role": "user", "content": f"The content of the paper is as follows:\n\n\n{paper_content}"},
                     ],
                     reasoning_effort=llm_config.reasoning_effort, # Assuming this is a valid param for your OpenAI client setup (e.g. instructor)
                     response_format=PaperSummary,
                 )
+                # For native_json_schema, the parsing happens internally, so we can't easily log raw json_content here.
+                # The error "Could not parse response content as the length limit was reached" is likely from the internal parsing.
                 summary = api_response.choices[0].message.parsed
 
             summary_dict = summary.model_dump()
@@ -238,11 +250,11 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
     However, there might be multiple elements, for instance, 'Efficient Adaptive System' maps to ['Efficient', 'Adaptive System'].
     Please refer to the following keyword list as the preferred choice for standard keywords: {json.dumps(reference_keywords_list, ensure_ascii=False)}.
     If no suitable standard keyword exists in the current list, you can create a new one, but maintain a similar conceptual level. If a keyword does not need to be changed, you do not need to process it. Do not generate redundant content like 'AI in Security': ['AI in Security'] as it has no modifications.
+    IMPORTANT: The 'merged_keywords' field in your JSON output MUST NOT be an empty object. If there are no keywords that need to be merged or changed, you MUST include a dummy entry like {{"NoChange": []}} in the 'merged_keywords' dictionary to satisfy the schema requirements. This is crucial for successful API parsing.
     However, please be very careful not to over-merge keywords or lose significant information a keyword can provide. For example, merging 'Gradient Estimation': ['Efficiency'] or 'Zeroth-Order Optimization': ['Efficiency'] is incorrect as it eliminates valid information.
     The most common case you need to handle is merging synonymous keywords like 'LLM': ['Large Language Model'].
     Overly verbose keywords (e.g., using four or five words) should be split into a combination of concise keywords. I encourage using conceptual combinations to represent new concepts.
     Please ensure the output conforms to the KeywordMerge format."""
-
     user_prompt_for_api = base_user_prompt
     if not native_json_schema:
         logger.warning(f"Model {llm_config.name} does not support native JSON Schema, falling back to prompt constraints for keyword merging.")
@@ -252,31 +264,52 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
             
     logger.debug(f"Keyword merge prompt: {user_prompt_for_api}")
     
+    system_message = {"role": "system", "content": "You are a keyword merging expert, specializing in mapping redundant or incorrect keywords to standard keywords."}
+    user_message = {"role": "user", "content": user_prompt_for_api}
+    messages_to_llm = [system_message, user_message]
+    
+    logger.debug(f"Messages sent to LLM for keyword merging: {messages_to_llm}")
+
     try:
         if not native_json_schema:
             raw_response = client.chat.completions.create(
                 model=llm_config.name,
                 temperature=llm_config.temperature,
                 top_p=llm_config.top_p,
-                messages=[
-                    {"role": "system", "content": "You are a keyword merging expert, specializing in mapping redundant or incorrect keywords to standard keywords."},
-                    {"role": "user", "content": user_prompt_for_api},
-                ],
+                messages=messages_to_llm,
             )
             json_content = raw_response.choices[0].message.content
+            logger.info(f"Raw JSON response for keyword merging: {json_content}") # Added log
+            
+            # Remove markdown code block delimiters if present
+            if json_content.startswith("```json") and json_content.endswith("```"):
+                json_content = json_content[len("```json"): -len("```")].strip()
+                logger.debug("Removed markdown code block delimiters from JSON content.")
+
+            # Manually ensure merged_keywords is not empty before Pydantic validation
+            try:
+                temp_parsed_json = json.loads(json_content)
+                if "merged_keywords" in temp_parsed_json and not temp_parsed_json["merged_keywords"]:
+                    logger.warning("LLM returned empty 'merged_keywords'. Inserting dummy entry.")
+                    temp_parsed_json["merged_keywords"] = {"NoChange": []}
+                json_content = json.dumps(temp_parsed_json, ensure_ascii=False)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to decode JSON content before validation: {e}")
+                # Re-raise or handle as appropriate, for now, proceed with original json_content
+                pass
+            
             parsed_result = KeywordMerge.model_validate_json(json_content)
         else:
             api_response = client.beta.chat.completions.parse(
                 model=llm_config.name,
                 temperature=llm_config.temperature,
                 top_p=llm_config.top_p,
-                messages=[
-                    {"role": "system", "content": "You are a keyword merging expert, specializing in mapping redundant or incorrect keywords to standard keywords."},
-                    {"role": "user", "content": user_prompt_for_api}, 
-                ],
+                messages=messages_to_llm,
                 reasoning_effort=llm_config.reasoning_effort, # Assuming valid param
                 response_format=KeywordMerge,
             )
+            # For native_json_schema, the parsing happens internally, so we can't easily log raw json_content here.
+            # The error "should be non-empty for OBJECT type" is likely from the internal parsing.
             parsed_result = api_response.choices[0].message.parsed
         
         logger.debug(f"Keyword merge response draft: {parsed_result.draft}")
@@ -289,6 +322,9 @@ def merge_keywords(results_df: pl.DataFrame, config: Config) -> pl.DataFrame:
                 return keywords
             updated = set()
             for kw in keywords:
+                # Skip the dummy entry if it exists
+                if kw == 'NoChange' and merged_keywords.get(kw) == []:
+                    continue
                 if kw in merged_keywords and len(merged_keywords[kw]) > 0:
                     # 将所有对应的规范关键词都添加进去
                     updated.update(merged_keywords[kw])
@@ -468,7 +504,7 @@ if __name__ == "__main__":
     if recommended_df_output is None:
         logger.error("模型预测未返回推荐数据框 (recommended_df is None)。")
         # Create an empty DataFrame with an 'id' column if you want to test extract_and_convert_papers
-        # For example: recommended_df = pl.DataFrame({'id': []}) 
+        # For example: recommended_df = pl.DataFrame({'id': []})
         # Or exit if this is critical
         logger.info("将使用空的 recommended_df 进行论文提取和转换（如果没有推荐）。")
         recommended_df = pl.DataFrame({'id': []}) # Ensure it's a DataFrame

@@ -11,6 +11,7 @@ from src.dataloader import load_dataset, download_dataset
 from src.trainer import train_model
 from src.sampler import predict
 from src.summarize import summarize, merge_keywords
+from src.archiver import archive_summaries
 
 from loguru import logger
 
@@ -67,9 +68,7 @@ def main():
     summarized_df = merge_keywords(summarized_df, config)
     logger.info("Keyword merging completed.")
 
-    output_path = REPO_ROOT / "summarized.parquet"  # Changed output filename
-    summarized_df.write_parquet(output_path)
-    logger.info(f"Manual summarization completed. Results saved to {output_path}")
+    archive_summaries(summarized_df)
 
 if __name__ == "__main__":
     main()
